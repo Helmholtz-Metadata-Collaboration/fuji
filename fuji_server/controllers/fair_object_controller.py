@@ -82,7 +82,8 @@ def assess_by_id(body):  # noqa: E501
             if ft.weblogger:
                 ft.logger.removeHandler(ft.weblogger)
         uid_result, pid_result = ft.check_unique_persistent()
-        ft.retrieve_metadata_embedded(ft.extruct_result)
+        # Indicate if the raw metadata is going to be saved.
+        ft.retrieve_metadata_embedded(ft.extruct_result, save_raw_metadata=True)
         if ft.repeat_pid_check:
             uid_result, pid_result = ft.check_unique_persistent()
         include_embedded = True

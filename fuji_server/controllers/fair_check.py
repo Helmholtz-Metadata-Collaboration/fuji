@@ -23,6 +23,7 @@
 # SOFTWARE.
 import io
 import json
+from pathlib import Path
 import logging, logging.handlers
 import mimetypes
 import re
@@ -444,7 +445,7 @@ class FAIRCheck:
                 '{} : Skipped external ressources (e.g. OAI, re3data) checks since landing page could not be resolved'.
                 format('FsF-R1.3-01M'))
 
-    def retrieve_metadata_embedded(self, extruct_metadata={}):
+    def retrieve_metadata_embedded(self, extruct_metadata={}, save_raw_metadata=False):
         isPid = False
         if self.pid_scheme:
             isPid = True
@@ -455,14 +456,34 @@ class FAIRCheck:
             #test if content is html otherwise skip embedded tests
             #print(self.landing_content_type)
             if 'html' in str(self.landing_content_type):
+
+                if save_raw_metadata:
+
+                    # The path of __file__ is /.../fuji/fuji_server/helper/metadata_collector.py
+                    root_path = Path(__file__).parents[2]
+
+                    # Replace the / to use the url as a filename.
+                    if self.landing_url:
+                        url_parsed = self.landing_url.replace("/", ":")
+
+                        raw_metadata_dir: Path = root_path / f"raw_metadata/{url_parsed}"
+                        raw_metadata_dir.mkdir(parents=True, exist_ok=True)
+
                 # ========= retrieve schema.org (embedded, or from via content-negotiation if pid provided) =========
                 ext_meta = extruct_metadata.get('json-ld')
                 self.logger.info('FsF-F2-01M : Trying to retrieve schema.org JSON-LD metadata from html page')
 
-                schemaorg_collector = MetaDataCollectorSchemaOrg(loggerinst=self.logger,
-                                                                 sourcemetadata=ext_meta,
-                                                                 mapping=Mapper.SCHEMAORG_MAPPING,
-                                                                 pidurl=None)
+                schemaorg_collector = MetaDataCollectorSchemaOrg(
+                    loggerinst=self.logger,
+                    sourcemetadata=ext_meta,
+                    mapping=Mapper.SCHEMAORG_MAPPING,
+                    pidurl=None,
+                )
+
+                if save_raw_metadata:
+                    schema_org_metadata_filepath: Path = raw_metadata_dir / "schema_org.txt"
+                    schema_org_metadata_filepath.write_text(str(schemaorg_collector.source_metadata))
+                
                 source_schemaorg, schemaorg_dict = schemaorg_collector.parse_metadata()
                 schemaorg_dict = self.exclude_null(schemaorg_dict)
                 if schemaorg_dict:
@@ -494,6 +515,10 @@ class FAIRCheck:
                     dc_collector = MetaDataCollectorDublinCore(loggerinst=self.logger,
                                                                sourcemetadata=self.landing_html,
                                                                mapping=Mapper.DC_MAPPING)
+                    if save_raw_metadata:
+                        schema_org_metadata_filepath: Path = raw_metadata_dir / "dublin_core.txt"
+                        schema_org_metadata_filepath.write_text(str(dc_collector.source_metadata))
+
                     source_dc, dc_dict = dc_collector.parse_metadata()
                     dc_dict = self.exclude_null(dc_dict)
                     if dc_dict:
@@ -515,6 +540,10 @@ class FAIRCheck:
                 microdata_collector = MetaDataCollectorMicroData(loggerinst=self.logger,
                                                                  sourcemetadata=micro_meta,
                                                                  mapping=Mapper.MICRODATA_MAPPING)
+                if save_raw_metadata:
+                    schema_org_metadata_filepath: Path = raw_metadata_dir / "microdata.txt"
+                    schema_org_metadata_filepath.write_text(str(microdata_collector.source_metadata))
+
                 source_micro, micro_dict = microdata_collector.parse_metadata()
                 if micro_dict:
                     self.metadata_sources.append((source_micro, 'embedded'))
@@ -534,6 +563,10 @@ class FAIRCheck:
                     rdfa_graph = pyRdfa(media_type='text/html').graph_from_source(rdfabuffer)
                     rdfa_collector = MetaDataCollectorRdf(loggerinst=self.logger,
                                                           target_url=self.landing_url, source=rdfasource)
+                    if save_raw_metadata:
+                        schema_org_metadata_filepath: Path = raw_metadata_dir / "rdfa.txt"
+                        schema_org_metadata_filepath.write_text(str(rdfa_collector.source_metadata))
+
                     rdfa_dict = rdfa_collector.get_metadata_from_graph(rdfa_graph)
                     if (len(rdfa_dict) > 0):
                         self.metadata_sources.append((rdfasource, 'embedded'))
@@ -545,7 +578,6 @@ class FAIRCheck:
                         self.logger.log(self.LOG_SUCCESS,
                                         'FsF-F2-01M : Found RDFa metadata -: ' + str(rdfa_dict.keys()))
                 except Exception as e:
-                    #print('RDFa parsing error',e)
                     self.logger.info(
                         'FsF-F2-01M : RDFa metadata parsing exception, probably no RDFa embedded in HTML -:' + str(e))
 
@@ -556,6 +588,10 @@ class FAIRCheck:
                 opengraph_collector = MetaDataCollectorOpenGraph(loggerinst=self.logger,
                                                                  sourcemetadata=ext_meta,
                                                                  mapping=Mapper.OG_MAPPING)
+                if save_raw_metadata:
+                    schema_org_metadata_filepath: Path = raw_metadata_dir / "opengraph.txt"
+                    schema_org_metadata_filepath.write_text(str(opengraph_collector.source_metadata))
+
                 source_opengraph, opengraph_dict = opengraph_collector.parse_metadata()
                 opengraph_dict = self.exclude_null(opengraph_dict)
                 if opengraph_dict:
@@ -575,6 +611,10 @@ class FAIRCheck:
                 if data_sign_links:
                     self.logger.info('FsF-F3-01M : Found data links in response header (signposting) -: ' +
                                      str(data_sign_links))
+                    if save_raw_metadata:
+                        schema_org_metadata_filepath: Path = raw_metadata_dir / "datasingal_links.txt"
+                        schema_org_metadata_filepath.write_text(str(data_sign_links))
+
                     if self.metadata_merged.get('object_content_identifier') is None:
                         self.metadata_merged['object_content_identifier'] = data_sign_links
 
@@ -584,7 +624,11 @@ class FAIRCheck:
                     if search.get('type') in ['application/opensearchdescription+xml']:
                         self.logger.info('FsF-R1.3-01M : Found OpenSearch link in HTML head (link rel=search) -: ' +
                                          str(search['url']))
-                        self.namespace_uri.append('http://a9.com/-/spec/opensearch/1.1/')
+                        if save_raw_metadata:
+                            schema_org_metadata_filepath: Path = raw_metadata_dir / "opensearch_links.txt"
+                            schema_org_metadata_filepath.write_text(str(search["url"]))
+
+                            self.namespace_uri.append('http://a9.com/-/spec/opensearch/1.1/')
 
                 #========= retrieve atom, GeoRSS links
                 #TODO: do somethin useful with this..
@@ -594,6 +638,11 @@ class FAIRCheck:
                         self.logger.info(
                             'FsF-R1.3-01M : Found atom/rss/georss feed link in HTML head (link rel=alternate) -: ' +
                             str(feed.get('url')))
+
+                        if save_raw_metadata:
+                            schema_org_metadata_filepath: Path = raw_metadata_dir / "atom_geo_rss.txt"
+                            schema_org_metadata_filepath.write_text(str(feed.get("url")))
+
                         feed_helper = RSSAtomMetadataProvider(self.logger, feed['url'], 'FsF-R1.3-01M')
                         feed_helper.getMetadataStandards()
                         self.namespace_uri.extend(feed_helper.getNamespaces())
@@ -603,6 +652,11 @@ class FAIRCheck:
                 if data_meta_links:
                     self.logger.info('FsF-F3-01M : Found data links in HTML head (link rel=item) -: ' +
                                      str(data_meta_links))
+
+                    if save_raw_metadata:
+                        schema_org_metadata_filepath: Path = raw_metadata_dir / "datalinks.txt"
+                        schema_org_metadata_filepath.write_text(str(data_meta_links))
+
                     if self.metadata_merged.get('object_content_identifier') is None:
                         self.metadata_merged['object_content_identifier'] = data_meta_links
                 # self.metadata_sources.append((MetaDataCollector.Sources.TYPED_LINK.value,'linked'))
