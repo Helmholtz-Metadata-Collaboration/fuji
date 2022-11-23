@@ -446,6 +446,7 @@ class FAIRCheck:
                 format('FsF-R1.3-01M'))
 
     def retrieve_metadata_embedded(self, extruct_metadata={}, save_raw_metadata=False):
+        print(f"{self.landing_url = }")
         isPid = False
         if self.pid_scheme:
             isPid = True
@@ -463,11 +464,10 @@ class FAIRCheck:
                     root_path = Path(__file__).parents[2]
 
                     # Replace the / to use the url as a filename.
-                    if self.landing_url:
-                        url_parsed = self.landing_url.replace("/", ":")
+                    url_parsed = self.landing_url.replace("/", ":")
 
-                        raw_metadata_dir: Path = root_path / f"raw_metadata/{url_parsed}"
-                        raw_metadata_dir.mkdir(parents=True, exist_ok=True)
+                    raw_metadata_dir: Path = root_path / f"raw_metadata/embedded/{url_parsed}"
+                    raw_metadata_dir.mkdir(parents=True, exist_ok=True)
 
                 # ========= retrieve schema.org (embedded, or from via content-negotiation if pid provided) =========
                 ext_meta = extruct_metadata.get('json-ld')
@@ -879,13 +879,36 @@ class FAIRCheck:
                 other_links.append(link)
         return preferred_links + other_links
 
-    def retrieve_metadata_external(self):
+    def retrieve_metadata_external(self, save_raw_metadata=False):
         test_content_negotiation = False
         test_typed_links = False
         test_signposting = False
         test_embedded = False
         self.logger.info(
             'FsF-F2-01M : Starting to identify EXTERNAL metadata through content negotiation or typed links')
+        if save_raw_metadata:
+
+            # The path of __file__ is /.../fuji/fuji_server/helper/metadata_collector.py
+
+            # Replace the / to use the url as a filename.
+            if self.landing_url:
+
+                url_parsed = self.landing_url.replace("/", ":")
+
+                root_path = Path(__file__).parents[2]
+                raw_metadata_dir: Path = root_path / f"raw_metadata/external/{url_parsed}"
+                raw_metadata_dir.mkdir(parents=True, exist_ok=True)
+
+            elif self.pid_url:
+
+                url_parsed = self.pid_url.replace("/", ":")
+
+                root_path = Path(__file__).parents[2]
+                raw_metadata_dir: Path = root_path / f"raw_metadata/external/{url_parsed}"
+                raw_metadata_dir.mkdir(parents=True, exist_ok=True)
+
+            else: # TODO: Check if there's another url that can be used to identify the asset.
+                save_raw_metadata = False
 
         # ========= retrieve xml metadata namespaces by content negotiation ========
         if self.landing_url:
@@ -903,6 +926,12 @@ class FAIRCheck:
                                                                 target_url=self.landing_url,
                                                                 link_type='negotiated')
                 source_neg_xml, metadata_neg_dict = negotiated_xml_collector.parse_metadata()
+
+                if save_raw_metadata:
+                    parsed_source_neg_xml=source_neg_xml.replace("/",":")
+                    metadata_filepath: Path = raw_metadata_dir / f"xml-{parsed_source_neg_xml}.txt"
+                    metadata_filepath.write_text(repr(metadata_neg_dict))
+
                 #print('### ',metadata_neg_dict)
                 neg_namespace = 'unknown xml'
                 metadata_neg_dict = self.exclude_null(metadata_neg_dict)
@@ -935,6 +964,12 @@ class FAIRCheck:
                                                                  mapping=Mapper.SCHEMAORG_MAPPING,
                                                                  pidurl=target_url)
                 source_schemaorg, schemaorg_dict = schemaorg_collector.parse_metadata()
+
+                if save_raw_metadata:
+                    parsed_source_schemaorg = source_schemaorg.replace("/",":")
+                    metadata_filepath: Path = raw_metadata_dir / f"jsonld-schemaorg-{parsed_source_schemaorg}.txt"
+                    metadata_filepath.write_text(repr(schemaorg_dict))
+
                 schemaorg_dict = self.exclude_null(schemaorg_dict)
                 if schemaorg_dict:
                     self.namespace_uri.extend(schemaorg_collector.namespaces)
@@ -998,6 +1033,12 @@ class FAIRCheck:
                                                         loggerinst=self.logger,
                                                         pid_url=datacite_target_url)
             source_dcitejsn, dcitejsn_dict = dcite_collector.parse_metadata()
+
+            if save_raw_metadata and source_dcitejsn:
+                parsed_source_datacite = source_dcitejsn.replace("/",":")
+                metadata_filepath: Path = raw_metadata_dir / f"datacite-{parsed_source_datacite}.txt"
+                metadata_filepath.write_text(repr(dcitejsn_dict))
+
             dcitejsn_dict = self.exclude_null(dcitejsn_dict)
             if dcitejsn_dict:
                 test_content_negotiation = True
@@ -1065,6 +1106,12 @@ class FAIRCheck:
                                                                    source=source)
                     if typed_rdf_collector is not None:
                         source_rdf, rdf_dict = typed_rdf_collector.parse_metadata()
+
+                        if save_raw_metadata:
+                            parsed_source_rdf = source_rdf.replace("/",":")
+                            metadata_filepath: Path = raw_metadata_dir / f"datacite-{parsed_source_rdf}.txt"
+                            metadata_filepath.write_text(repr(rdf_dict))
+
                         self.namespace_uri.extend(typed_rdf_collector.getNamespaces())
                         rdf_dict = self.exclude_null(rdf_dict)
                         if rdf_dict:

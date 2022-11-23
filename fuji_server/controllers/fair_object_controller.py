@@ -87,7 +87,7 @@ def assess_by_id(body):  # noqa: E501
         if ft.repeat_pid_check:
             uid_result, pid_result = ft.check_unique_persistent()
         include_embedded = True
-        ft.retrieve_metadata_external()
+        ft.retrieve_metadata_external(save_raw_metadata=True)
         if ft.repeat_pid_check:
             uid_result, pid_result = ft.check_unique_persistent()
 
