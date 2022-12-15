@@ -82,17 +82,27 @@ def main():
     #comment in case waitress is wished
     #app.run(host=config['SERVICE']['service_host'], port=int(config['SERVICE']['service_port']),debug=False)
     #switch to waitress
-    serve(app, host=config['SERVICE']['service_host'], port=int(config['SERVICE']['service_port']))
+    port = int(config['SERVICE']['service_port'])
+    print(port)
+    serve(app, host=config['SERVICE']['service_host'], port=port)
 
 if __name__ == '__main__':
     global config
+    global port
     my_path = os.path.abspath(os.path.dirname(__file__))
     parser = argparse.ArgumentParser()
     # add a new command line option, call it '-c' and set its destination to 'config_file'
     parser.add_argument('-c', '--config', required=True, help='Path to server.ini config file')
+    parser.add_argument('-p', '--port', required=False, const=None, help='The port to run the server, pro ofer config file')
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(args.config)
+
+    port = args.port
+    if port is not None:
+        port = int(port)
+        config['SERVICE']['service_port'] = str(port)
+    #print('port', port)
     log_configfile = os.path.join(my_path, config['SERVICE']['log_config'])
     log_dir = config['SERVICE']['logdir']
     log_directory = os.path.join(my_path, log_dir)
