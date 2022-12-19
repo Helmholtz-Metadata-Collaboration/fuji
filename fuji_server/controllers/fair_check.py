@@ -22,7 +22,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import io
-import json
+import binascii
+from datetime import date
 from pathlib import Path
 import logging, logging.handlers
 import mimetypes
@@ -461,12 +462,13 @@ class FAIRCheck:
                 if save_raw_metadata:
 
                     # The path of __file__ is /.../fuji/fuji_server/helper/metadata_collector.py
-                    root_path = Path(__file__).parents[2]
+                    root_path = Path(__file__).parents[3]
 
                     # Replace the / to use the url as a filename.
-                    url_parsed = self.landing_url.replace("/", ":")
+                    url_parsed = binascii.hexlify( self.landing_url.encode("utf-8")).decode()
 
-                    raw_metadata_dir: Path = root_path / f"raw_metadata/embedded/{url_parsed}"
+                    today: str = date.today().strftime("%Y-%m-%d")
+                    raw_metadata_dir: Path = root_path / f"raw_metadata/{today}/embedded/{url_parsed}"
                     raw_metadata_dir.mkdir(parents=True, exist_ok=True)
 
                 # ========= retrieve schema.org (embedded, or from via content-negotiation if pid provided) =========
@@ -893,18 +895,20 @@ class FAIRCheck:
             # Replace the / to use the url as a filename.
             if self.landing_url:
 
-                url_parsed = self.landing_url.replace("/", ":")
+                url_parsed = binascii.hexlify( self.landing_url.encode("utf-8")).decode()
 
-                root_path = Path(__file__).parents[2]
-                raw_metadata_dir: Path = root_path / f"raw_metadata/external/{url_parsed}"
+                root_path = Path(__file__).parents[3]
+                today: str = date.today().strftime("%Y-%m-%d")
+                raw_metadata_dir: Path = root_path / f"raw_metadata/{today}/external/{url_parsed}"
                 raw_metadata_dir.mkdir(parents=True, exist_ok=True)
 
             elif self.pid_url:
 
-                url_parsed = self.pid_url.replace("/", ":")
+                url_parsed = binascii.hexlify( self.pid_url.encode("utf-8")).decode()
 
-                root_path = Path(__file__).parents[2]
-                raw_metadata_dir: Path = root_path / f"raw_metadata/external/{url_parsed}"
+                root_path = Path(__file__).parents[3]
+                today: str = date.today().strftime("%Y-%m-%d")
+                raw_metadata_dir: Path = root_path / f"raw_metadata/{today}/external/{url_parsed}"
                 raw_metadata_dir.mkdir(parents=True, exist_ok=True)
 
             else: # TODO: Check if there's another url that can be used to identify the asset.
@@ -928,7 +932,7 @@ class FAIRCheck:
                 source_neg_xml, metadata_neg_dict = negotiated_xml_collector.parse_metadata()
 
                 if save_raw_metadata:
-                    parsed_source_neg_xml=source_neg_xml.replace("/",":")
+                    parsed_source_neg_xml = binascii.hexlify(source_neg_xml.encode("utf-8")).decode()
                     metadata_filepath: Path = raw_metadata_dir / f"xml-{parsed_source_neg_xml}.txt"
                     metadata_filepath.write_text(repr(metadata_neg_dict))
 
@@ -966,7 +970,7 @@ class FAIRCheck:
                 source_schemaorg, schemaorg_dict = schemaorg_collector.parse_metadata()
 
                 if save_raw_metadata:
-                    parsed_source_schemaorg = source_schemaorg.replace("/",":")
+                    parsed_source_schemaorg = binascii.hexlify(source_schemaorg.encode("utf-8")).decode()
                     metadata_filepath: Path = raw_metadata_dir / f"jsonld-schemaorg-{parsed_source_schemaorg}.txt"
                     metadata_filepath.write_text(repr(schemaorg_dict))
 
@@ -1035,7 +1039,7 @@ class FAIRCheck:
             source_dcitejsn, dcitejsn_dict = dcite_collector.parse_metadata()
 
             if save_raw_metadata and source_dcitejsn:
-                parsed_source_datacite = source_dcitejsn.replace("/",":")
+                parsed_source_datacite = binascii.hexlify(source_dcitejsn.encode("utf-8")).decode()
                 metadata_filepath: Path = raw_metadata_dir / f"datacite-{parsed_source_datacite}.txt"
                 metadata_filepath.write_text(repr(dcitejsn_dict))
 
@@ -1108,7 +1112,7 @@ class FAIRCheck:
                         source_rdf, rdf_dict = typed_rdf_collector.parse_metadata()
 
                         if save_raw_metadata:
-                            parsed_source_rdf = source_rdf.replace("/",":")
+                            parsed_source_rdf = binascii.hexlify(source_rdf.encode("utf-8")).decode()
                             metadata_filepath: Path = raw_metadata_dir / f"datacite-{parsed_source_rdf}.txt"
                             metadata_filepath.write_text(repr(rdf_dict))
 
